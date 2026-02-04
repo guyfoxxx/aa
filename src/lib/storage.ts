@@ -65,6 +65,10 @@ function hydrateUser(env: Env, u: any): { u: UserProfile; changed: boolean } {
   if (!u.subscription) { u.subscription = { active: false }; changed = true; }
   if (!u.wallet) { u.wallet = {}; changed = true; }
   if (!u.customPrompt) { u.customPrompt = { ready: false }; changed = true; }
+  if (u.onboardingComplete == null) {
+    u.onboardingComplete = Boolean(u.phone || u.experience || u.favoriteMarket);
+    changed = true;
+  }
 
   return { u: u as UserProfile, changed };
 }
@@ -121,6 +125,7 @@ export async function ensureUser(env: Env, partial: {
     subscription: { active: false },
     wallet: {},
     customPrompt: { ready: false },
+    onboardingComplete: false,
   };
 
   await putUser(env, u);

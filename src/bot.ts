@@ -25,7 +25,13 @@ import {
   setPublicWallet,
   setSelectedPlan,
 } from "./lib/storage";
-import { fmtDateIso, isValidTxid, nowIso, parseFloatSafe, parseIntSafe } from "./lib/utils";
+import {
+  fmtDateIso,
+  isValidTxid,
+  nowIso,
+  parseFloatSafe,
+  parseIntSafe,
+} from "./lib/utils";
 
 type MyContext = Context & {
   env: Env;
@@ -59,7 +65,9 @@ async function setState(env: Env, userId: number, state: FlowState | null) {
     await env.USERS_KV.delete(STATE_KEY(userId));
     return;
   }
-  await env.USERS_KV.put(STATE_KEY(userId), JSON.stringify(state), { expirationTtl: 60 * 60 * 6 }); // 6h
+  await env.USERS_KV.put(STATE_KEY(userId), JSON.stringify(state), {
+    expirationTtl: 60 * 60 * 6,
+  }); // 6h
 }
 
 function mainMenuKb() {
@@ -80,7 +88,13 @@ function mainMenuKb() {
 }
 
 function toMarketLabel(m: Market) {
-  return m === "CRYPTO" ? "کریپتو" : m === "FOREX" ? "فارکس" : m === "METALS" ? "فلزات" : "سهام";
+  return m === "CRYPTO"
+    ? "کریپتو"
+    : m === "FOREX"
+      ? "فارکس"
+      : m === "METALS"
+        ? "فلزات"
+        : "سهام";
 }
 
 function settingsText(u: UserProfile) {
@@ -93,12 +107,27 @@ function settingsText(u: UserProfile) {
 
 function settingsKb(u: UserProfile) {
   const kb = new InlineKeyboard()
-    .text("TF: M15", "set:tf:M15").text("TF: H1", "set:tf:H1").row()
-    .text("TF: H4", "set:tf:H4").text("TF: D1", "set:tf:D1").row()
-    .text("ریسک کم", "set:risk:LOW").text("ریسک متوسط", "set:risk:MEDIUM").text("ریسک زیاد", "set:risk:HIGH").row()
-    .text("GENERAL", "set:style:GENERAL").text("PA", "set:style:PA").text("ICT", "set:style:ICT").row()
-    .text("ATR", "set:style:ATR").text("RTM", "set:style:RTM").text("CUSTOM", "set:style:CUSTOM").row()
-    .text("News ON", "set:news:ON").text("News OFF", "set:news:OFF").row()
+    .text("TF: M15", "set:tf:M15")
+    .text("TF: H1", "set:tf:H1")
+    .row()
+    .text("TF: H4", "set:tf:H4")
+    .text("TF: D1", "set:tf:D1")
+    .row()
+    .text("ریسک کم", "set:risk:LOW")
+    .text("ریسک متوسط", "set:risk:MEDIUM")
+    .text("ریسک زیاد", "set:risk:HIGH")
+    .row()
+    .text("GENERAL", "set:style:GENERAL")
+    .text("PA", "set:style:PA")
+    .text("ICT", "set:style:ICT")
+    .row()
+    .text("ATR", "set:style:ATR")
+    .text("RTM", "set:style:RTM")
+    .text("CUSTOM", "set:style:CUSTOM")
+    .row()
+    .text("News ON", "set:news:ON")
+    .text("News OFF", "set:news:OFF")
+    .row()
     .text("⬅️ منو", "menu:home");
   return kb;
 }
@@ -109,12 +138,19 @@ function requireUser(ctx: MyContext): UserProfile {
 }
 
 async function notifyAdmins(env: Env, bot: Bot<MyContext>, text: string) {
-  const ids = (env.ADMIN_IDS ?? "").split(",").map(s => s.trim()).filter(Boolean).map(Number);
+  const ids = (env.ADMIN_IDS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map(Number);
   const owner = env.OWNER_ID ? Number(env.OWNER_ID) : undefined;
   const targets = new Set<number>(ids);
   if (owner) targets.add(owner);
+
   for (const id of targets) {
-    try { await bot.api.sendMessage(id, text); } catch {}
+    try {
+      await bot.api.sendMessage(id, text);
+    } catch {}
   }
 }
 
@@ -130,7 +166,9 @@ async function showMenu(ctx: MyContext) {
 }
 
 export function createBot(env: Env) {
-  const bot = new Bot<MyContext>(env.BOT_TOKEN, { botInfo: JSON.parse(env.BOT_INFO || "{}") });
+  const bot = new Bot<MyContext>(env.BOT_TOKEN, {
+    botInfo: JSON.parse(env.BOT_INFO || "{}"),
+  });
 
   bot.use(async (ctx, next) => {
     ctx.env = env;
@@ -147,13 +185,17 @@ export function createBot(env: Env) {
   bot.catch(async (err) => {
     console.log("BOT ERROR", err.error);
     try {
-      await err.ctx.reply("❌ خطای داخلی رخ داد. لطفاً دوباره تلاش کنید یا /support را بزنید.");
+      await err.ctx.reply(
+        "❌ خطای داخلی رخ داد. لطفاً دوباره تلاش کنید یا /support را بزنید."
+      );
     } catch {}
   });
 
   // Commands
   bot.command(["start", "menu"], async (ctx) => {
     const u = requireUser(ctx);
+    const st = await getState(env, u.id);
+
     // referral: /start CODE
     const text = ctx.message?.text ?? "";
     const code = text.split(" ")[1]?.trim();
@@ -165,15 +207,33 @@ export function createBot(env: Env) {
       }
     }
 
+    if (u.onboardingComplete) {
+      await showMenu(ctx);
+      return;
+    }
     if (!u.name) {
       await setState(env, u.id, { flow: "onboarding", step: "ask_name" });
       await ctx.reply("👤 لطفاً نام خود را ارسال کنید:");
       return;
     }
+    if (u.phone && st?.flow === "onboarding" && st.step === "ask_contact") {
+      await setState(env, u.id, { flow: "onboarding", step: "ask_experience" });
+      const kb = new InlineKeyboard()
+        .text("مبتدی", "ob:exp:BEGINNER")
+        .text("متوسط", "ob:exp:INTERMEDIATE")
+        .text("حرفه‌ای", "ob:exp:PRO");
+      await ctx.reply("تجربه شما در بازار؟", { reply_markup: kb });
+      return;
+    }
     if (!u.phone) {
       await setState(env, u.id, { flow: "onboarding", step: "ask_contact" });
-      const kb = new Keyboard().requestContact("📞 ارسال شماره (Share Contact)").resized().oneTime();
-      await ctx.reply("📞 برای ادامه، لطفاً شماره خود را Share کنید:", { reply_markup: kb });
+      const kb = new Keyboard()
+        .requestContact("📞 ارسال شماره (Share Contact)")
+        .resized()
+        .oneTime();
+      await ctx.reply("📞 برای ادامه، لطفاً شماره خود را Share کنید:", {
+        reply_markup: kb,
+      });
       return;
     }
     await showMenu(ctx);
@@ -183,7 +243,10 @@ export function createBot(env: Env) {
     const u = requireUser(ctx);
     await ensureQuotaReset(env, u);
     const q = remaining(env, u);
-    if ((q.dailyLeft !== Infinity && q.dailyLeft < 1) || (q.monthLeft !== Infinity && q.monthLeft < 1)) {
+    if (
+      (q.dailyLeft !== Infinity && q.dailyLeft < 1) ||
+      (q.monthLeft !== Infinity && q.monthLeft < 1)
+    ) {
       await ctx.reply(`سهمیه شما کافی نیست.
 برای مشاهده سهمیه: /profile`);
       return;
@@ -209,7 +272,10 @@ export function createBot(env: Env) {
     const u = requireUser(ctx);
     await ensureQuotaReset(env, u);
     const q = remaining(env, u);
-    const subActive = u.subscription.active && u.subscription.expiresAt && Date.parse(u.subscription.expiresAt) > Date.now();
+    const subActive =
+      u.subscription.active &&
+      u.subscription.expiresAt &&
+      Date.parse(u.subscription.expiresAt) > Date.now();
     const wallet = await getPublicWallet(env);
 
     const txt = `👤 پروفایل
@@ -223,8 +289,12 @@ export function createBot(env: Env) {
 💰 کمیسیون رفرال: ${u.referralCommissionPct}% 
 
 📌 سهمیه:
-• روزانه مصرف‌شده: ${u.quota.dailyUsed} | باقی‌مانده: ${q.dailyLeft === Infinity ? "نامحدود" : q.dailyLeft}
-• ماهانه مصرف‌شده: ${u.quota.monthlyUsed} | باقی‌مانده: ${q.monthLeft === Infinity ? "نامحدود" : q.monthLeft}
+• روزانه مصرف‌شده: ${u.quota.dailyUsed} | باقی‌مانده: ${
+      q.dailyLeft === Infinity ? "نامحدود" : q.dailyLeft
+    }
+• ماهانه مصرف‌شده: ${u.quota.monthlyUsed} | باقی‌مانده: ${
+      q.monthLeft === Infinity ? "نامحدود" : q.monthLeft
+    }
 
 💳 اشتراک: ${subActive ? "فعال ✅" : "غیرفعال ❌"}
 • انقضا: ${subActive ? fmtDateIso(u.subscription.expiresAt, env.TZ) : "-"}
@@ -241,10 +311,12 @@ export function createBot(env: Env) {
 
     const kb = new InlineKeyboard();
     const selected = u.settings.selectedPlanId;
+
     for (const p of plans) {
       const prefix = selected === p.id ? "✅ " : "";
       kb.text(`${prefix}${p.title} • ${p.priceUsdt} USDT`, `plan:${p.id}`).row();
     }
+
     kb.text("🔄 رفرش پلن‌ها", "planlist").row();
     kb.url("💬 پشتیبانی", "https://t.me/").row();
     kb.text("⬅️ منو", "menu:home");
@@ -257,7 +329,11 @@ export function createBot(env: Env) {
       `۳) بعد از پرداخت، TxID را ارسال کن:\n<code>/tx YOUR_TXID</code>\n\n` +
       `اگر پلن انتخاب کردی، نیاز نیست PLAN_ID بفرستی.`;
 
-    await ctx.reply(text, { parse_mode: "HTML", reply_markup: kb, disable_web_page_preview: true });
+    await ctx.reply(text, {
+      parse_mode: "HTML",
+      reply_markup: kb,
+      disable_web_page_preview: true,
+    });
   }
 
   bot.command(["buy", "pay"], async (ctx) => showBuy(ctx));
@@ -268,16 +344,19 @@ export function createBot(env: Env) {
     const txid = (parts[0] || "").trim();
     const planIdArg = (parts[1] || "").trim();
     const planId = planIdArg || u.settings.selectedPlanId || "";
+
     if (!txid || !isValidTxid(txid)) {
       await ctx.reply(`فرمت TxID معتبر نیست. مثال:
 /tx 0xabc123...`);
       return;
     }
+
     const exists = await getPayment(env, txid);
     if (exists) {
       await ctx.reply("این TxID قبلاً ثبت شده است.");
       return;
     }
+
     const plan = planId ? await findPlan(env, planId) : null;
     const plans = !plan ? await getPlans(env) : null;
     const chosen = plan || (plans && plans[0]) || null;
@@ -287,58 +366,88 @@ export function createBot(env: Env) {
       userId: u.id,
       status: "PENDING" as const,
       createdAt: nowIso(),
-      amountUsdt: chosen ? chosen.priceUsdt : parseFloatSafe(env.SUB_PRICE_USDT, 29),
-      planDays: chosen ? chosen.durationDays : parseIntSafe(env.SUB_DURATION_DAYS, 30),
+      amountUsdt: chosen
+        ? chosen.priceUsdt
+        : parseFloatSafe(env.SUB_PRICE_USDT, 29),
+      planDays: chosen
+        ? chosen.durationDays
+        : parseIntSafe(env.SUB_DURATION_DAYS, 30),
     };
     await putPayment(env, p);
 
-    await ctx.reply("✅ TxID ثبت شد. پس از بررسی ادمین، به شما اطلاع داده می‌شود.");
+    await ctx.reply(
+      "✅ TxID ثبت شد. پس از بررسی ادمین، به شما اطلاع داده می‌شود."
+    );
 
-    // notify admins with inline buttons
     const kb = new InlineKeyboard()
       .text("✅ Approve", `pay:approve:${txid}`)
       .text("❌ Reject", `pay:reject:${txid}`);
-    await notifyAdmins(env, bot, `💳 پرداخت جدید (PENDING)
+
+    await notifyAdmins(
+      env,
+      bot,
+      `💳 پرداخت جدید (PENDING)
 User: ${u.id}
-TxID: ${txid}`);
-    // also send interactive to owner only? We'll just to admins with callback: easiest is to send message with keyboard to each admin
-    const ids = (env.ADMIN_IDS ?? "").split(",").map(s => s.trim()).filter(Boolean).map(Number);
+TxID: ${txid}`
+    );
+
+    const ids = (env.ADMIN_IDS ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map(Number);
     const owner = env.OWNER_ID ? Number(env.OWNER_ID) : undefined;
     const targets = new Set<number>(ids);
     if (owner) targets.add(owner);
+
     for (const id of targets) {
-      try { await bot.api.sendMessage(id, `برای بررسی: ${txid}`, { reply_markup: kb }); } catch {}
+      try {
+        await bot.api.sendMessage(id, `برای بررسی: ${txid}`, {
+          reply_markup: kb,
+        });
+      } catch {}
     }
   });
 
   bot.command("wallet", async (ctx) => {
     const wallet = await getPublicWallet(env);
-    await ctx.reply(wallet ? `🏦 آدرس ولت عمومی:\n${wallet}` : "❌ هنوز ولت عمومی تنظیم نشده است.");
+    await ctx.reply(
+      wallet
+        ? `🏦 آدرس ولت عمومی:\n${wallet}`
+        : "❌ هنوز ولت عمومی تنظیم نشده است."
+    );
   });
 
   bot.command("level", async (ctx) => {
     const u = requireUser(ctx);
     await setState(env, u.id, { flow: "level", step: "q1", data: { answers: [] } });
-    await ctx.reply("🧠 آزمون تعیین سطح شروع شد.\nسوال 1/6: هدف اصلی شما از ترید چیست؟ (کوتاه پاسخ بده)");
+    await ctx.reply(
+      "🧠 آزمون تعیین سطح شروع شد.\nسوال 1/6: هدف اصلی شما از ترید چیست؟ (کوتاه پاسخ بده)"
+    );
   });
 
   bot.command("customprompt", async (ctx) => {
     const u = requireUser(ctx);
     await setState(env, u.id, { flow: "customprompt", step: "await_text" });
-    await ctx.reply("✍️ لطفاً استراتژی/روش خود را به صورت متن ارسال کنید. سیستم برای شما یک پرامپت اختصاصی می‌سازد و ۲ ساعت بعد ارسال می‌کند.");
+    await ctx.reply(
+      "✍️ لطفاً استراتژی/روش خود را به صورت متن ارسال کنید. سیستم برای شما یک پرامپت اختصاصی می‌سازد و ۲ ساعت بعد ارسال می‌کند."
+    );
   });
 
   bot.command("ref", async (ctx) => {
     const u = requireUser(ctx);
     const linkBase = `https://t.me/${(bot.botInfo as any)?.username ?? "YOUR_BOT"}?start=`;
     const codes = u.refCodes.map((c, i) => `${i + 1}) ${linkBase}${c}`).join("\n");
-    await ctx.reply(`🎁 رفرال شما:
+    await ctx.reply(
+      `🎁 رفرال شما:
 ${codes}
 
 دعوت موفق: ${u.successfulInvites}
 امتیاز: ${u.points}
 
-برای تبدیل امتیاز: /redeem`, { disable_web_page_preview: true });
+برای تبدیل امتیاز: /redeem`,
+      { disable_web_page_preview: true }
+    );
   });
 
   bot.command("redeem", async (ctx) => {
@@ -352,9 +461,11 @@ ${codes}
       return;
     }
     u.points -= need;
-    // activate subscription for days from now or extend
     const now = Date.now();
-    const base = u.subscription.expiresAt && Date.parse(u.subscription.expiresAt) > now ? Date.parse(u.subscription.expiresAt) : now;
+    const base =
+      u.subscription.expiresAt && Date.parse(u.subscription.expiresAt) > now
+        ? Date.parse(u.subscription.expiresAt)
+        : now;
     const expires = new Date(base + days * 24 * 3600 * 1000).toISOString();
     u.subscription.active = true;
     u.subscription.expiresAt = expires;
@@ -375,7 +486,10 @@ ${codes}
     if (!isAdmin(u, env)) return ctx.reply("دسترسی ندارید.");
     const pending = await listPayments(env, "PENDING");
     if (!pending.length) return ctx.reply("پرداخت در انتظار نداریم.");
-    const text = pending.slice(0, 15).map((p) => `• ${p.txid} | user ${p.userId} | ${p.createdAt}`).join("\n");
+    const text = pending
+      .slice(0, 15)
+      .map((p) => `• ${p.txid} | user ${p.userId} | ${p.createdAt}`)
+      .join("\n");
     await ctx.reply(`لیست پرداخت‌های در انتظار:\n${text}`);
   });
 
@@ -398,15 +512,24 @@ ${codes}
   bot.command("setwallet", async (ctx) => {
     const u = requireUser(ctx);
     if (!isAdmin(u, env)) return ctx.reply("دسترسی ندارید.");
-    const addr = (ctx.message?.text ?? "").split(" ").slice(1).join(" ").trim();
+    const addr = (ctx.message?.text ?? "")
+      .split(" ")
+      .slice(1)
+      .join(" ")
+      .trim();
     if (!addr) return ctx.reply("مثال: /setwallet WALLET_ADDRESS");
     await setPublicWallet(env, addr);
     await ctx.reply("✅ ولت عمومی ذخیره شد.");
-    // alert owner
+
     const ownerId = env.OWNER_ID ? Number(env.OWNER_ID) : undefined;
     if (ownerId) {
-      try { await bot.api.sendMessage(ownerId, `⚠️ آدرس ولت عمومی تغییر کرد:
-${addr}`); } catch {}
+      try {
+        await bot.api.sendMessage(
+          ownerId,
+          `⚠️ آدرس ولت عمومی تغییر کرد:
+${addr}`
+        );
+      } catch {}
     }
   });
 
@@ -416,7 +539,9 @@ ${addr}`); } catch {}
     const n = Number((ctx.message?.text ?? "").split(" ")[1]);
     if (!Number.isFinite(n) || n <= 0) return ctx.reply("مثال: /setfreelimit 50");
     await env.USERS_KV.put("config:free_daily_limit", String(n));
-    await ctx.reply("✅ ثبت شد (برای اعمال کامل، این نسخه نیاز دارد شما مقدار env را نیز sync کنید).");
+    await ctx.reply(
+      "✅ ثبت شد (برای اعمال کامل، این نسخه نیاز دارد شما مقدار env را نیز sync کنید)."
+    );
   });
 
   bot.command("setsublimit", async (ctx) => {
@@ -425,7 +550,9 @@ ${addr}`); } catch {}
     const n = Number((ctx.message?.text ?? "").split(" ")[1]);
     if (!Number.isFinite(n) || n <= 0) return ctx.reply("مثال: /setsublimit 50");
     await env.USERS_KV.put("config:sub_daily_limit", String(n));
-    await ctx.reply("✅ ثبت شد (برای اعمال کامل، این نسخه نیاز دارد شما مقدار env را نیز sync کنید).");
+    await ctx.reply(
+      "✅ ثبت شد (برای اعمال کامل، این نسخه نیاز دارد شما مقدار env را نیز sync کنید)."
+    );
   });
 
   bot.command("admin", async (ctx) => {
@@ -498,13 +625,19 @@ ${ctx.me.username ? `https://<YOUR_WORKER_URL>/admin` : "/admin"}
       await ctx.answerCallbackQuery();
       const planId = data.split(":")[1];
       await setSelectedPlan(env, u.id, planId);
-      await ctx.reply(`✅ پلن انتخاب شد: ${planId}\nاکنون می‌توانید TxID را ارسال کنید:\n/tx YOUR_TXID`);
+      await ctx.reply(
+        `✅ پلن انتخاب شد: ${planId}\nاکنون می‌توانید TxID را ارسال کنید:\n/tx YOUR_TXID`
+      );
       return;
     }
+
     if (data === "menu:app") {
       await ctx.answerCallbackQuery();
       await ctx.reply("📱 برای باز کردن Mini App روی دکمه زیر بزن:", {
-        reply_markup: new InlineKeyboard().webApp("Open Mini App", env.PUBLIC_APP_PATH || "/app").row().text("⬅️ منو", "menu:home"),
+        reply_markup: new InlineKeyboard()
+          .webApp("Open Mini App", env.PUBLIC_APP_PATH || "/app")
+          .row()
+          .text("⬅️ منو", "menu:home"),
       });
       return;
     }
@@ -517,14 +650,18 @@ ${ctx.me.username ? `https://<YOUR_WORKER_URL>/admin` : "/admin"}
       if (key === "risk") u.settings.risk = val as Risk;
       if (key === "style") {
         if (val === "CUSTOM" && !u.customPrompt?.ready) {
-          await ctx.reply("❌ پرامپت اختصاصی هنوز آماده نیست. ابتدا /customprompt را انجام دهید.");
+          await ctx.reply(
+            "❌ پرامپت اختصاصی هنوز آماده نیست. ابتدا /customprompt را انجام دهید."
+          );
           return;
         }
         u.settings.style = val as Style;
       }
       if (key === "news") u.settings.news = val as any;
       await putUser(env, u);
-      await ctx.reply(`✅ ذخیره شد.\n${settingsText(u)}`, { reply_markup: settingsKb(u) });
+      await ctx.reply(`✅ ذخیره شد.\n${settingsText(u)}`, {
+        reply_markup: settingsKb(u),
+      });
       return;
     }
 
@@ -533,8 +670,10 @@ ${ctx.me.username ? `https://<YOUR_WORKER_URL>/admin` : "/admin"}
       await ctx.answerCallbackQuery();
       const market = data.split(":")[2] as Market;
       await setState(env, u.id, { flow: "signals", step: "ask_symbol", data: { market } });
-      await ctx.reply(`نماد را ارسال کن (مثلاً BTCUSDT یا BTC-USD یا EURUSD=X)
-بازار: ${toMarketLabel(market)}`);
+      await ctx.reply(
+        `نماد را ارسال کن (مثلاً BTCUSDT یا BTC-USD یا EURUSD=X)
+بازار: ${toMarketLabel(market)}`
+      );
       return;
     }
 
@@ -562,13 +701,31 @@ ${ctx.me.username ? `https://<YOUR_WORKER_URL>/admin` : "/admin"}
           await ctx.reply(r.reason || "خطا در ذخیره شماره");
           return;
         }
+
+        // ✅ CODEX PRIORITY: keep local update too
+        u.phone = phone;
+
         if (r.existingUserId && r.existingUserId !== u.id) {
-          await notifyAdmins(env, bot, `⚠️ شماره تلفن دوباره ثبت شد و به این کاربر منتقل شد.
+          await notifyAdmins(
+            env,
+            bot,
+            `⚠️ شماره تلفن دوباره ثبت شد و به این کاربر منتقل شد.
 Phone: ${phone}
 New User: ${u.id}
-Old User: ${r.existingUserId}`);
-          await ctx.reply("✅ شماره قبلاً ثبت شده بود؛ شماره به حساب شما منتقل شد و آنبوردینگ ادامه پیدا می‌کند.");
+Old User: ${r.existingUserId}`
+          );
+          await ctx.reply(
+            "✅ شماره قبلاً ثبت شده بود؛ شماره به حساب شما منتقل شد و آنبوردینگ ادامه پیدا می‌کند."
+          );
         }
+
+        // ✅ CODEX PRIORITY: if already complete, jump to menu
+        if (u.onboardingComplete) {
+          await setState(env, u.id, null);
+          await showMenu(ctx);
+          return;
+        }
+
         // next
         await setState(env, u.id, { flow: "onboarding", step: "ask_experience" });
         const kb = new InlineKeyboard()
@@ -589,7 +746,10 @@ Old User: ${r.existingUserId}`);
       u.name = name;
       await putUser(env, u);
       await setState(env, u.id, { flow: "onboarding", step: "ask_contact" });
-      const kb = new Keyboard().requestContact("📞 ارسال شماره (Share Contact)").resized().oneTime();
+      const kb = new Keyboard()
+        .requestContact("📞 ارسال شماره (Share Contact)")
+        .resized()
+        .oneTime();
       await ctx.reply("📞 لطفاً شماره خود را Share کنید:", { reply_markup: kb });
       return;
     }
@@ -603,7 +763,7 @@ Old User: ${r.existingUserId}`);
         q3: "سوال 3/6: بیشترین تجربه شما روی کدام بازار است؟",
         q4: "سوال 4/6: ریسک‌پذیری‌تان را چگونه توصیف می‌کنید؟",
         q5: "سوال 5/6: کدام سبک را بیشتر می‌پسندید؟ (RTM/ICT/PA/General)",
-        q6: "سوال 6/6: یک اشتباه رایج شما در ترید چیست؟"
+        q6: "سوال 6/6: یک اشتباه رایج شما در ترید چیست؟",
       };
       const idx = Number(st.step.slice(1));
       st.data = st.data || { answers: [] };
@@ -616,7 +776,6 @@ Old User: ${r.existingUserId}`);
         return;
       }
 
-      // analyze result with AI
       await setState(env, u.id, null);
       await ctx.reply("در حال تحلیل پاسخ‌ها...");
 
@@ -633,11 +792,17 @@ ${JSON.stringify(st.data.answers, null, 2)}
         const out = await callAI(env, prompt, { temperature: 0.2 });
         const j = extractJsonBlock(out);
         if (j?.level) {
-          u.levelInfo = { level: String(j.level), summary: String(j.summary ?? ""), suggestedMarket: j.suggestedMarket, suggestedSettings: j.suggestedSettings, updatedAt: nowIso() };
+          u.levelInfo = {
+            level: String(j.level),
+            summary: String(j.summary ?? ""),
+            suggestedMarket: j.suggestedMarket,
+            suggestedSettings: j.suggestedSettings,
+            updatedAt: nowIso(),
+          };
           await putUser(env, u);
         }
         await ctx.reply(out);
-      } catch (e: any) {
+      } catch {
         await ctx.reply("❌ خطا در تحلیل سطح. لطفاً دوباره تلاش کنید.");
       }
       return;
@@ -646,7 +811,8 @@ ${JSON.stringify(st.data.answers, null, 2)}
     // Custom prompt flow
     if (st?.flow === "customprompt" && st.step === "await_text" && ctx.message?.text) {
       const strategy = ctx.message.text.trim();
-      if (strategy.length < 20) return ctx.reply("متن کوتاه است. لطفاً جزئیات بیشتری بفرستید (حداقل ۲۰ کاراکتر).");
+      if (strategy.length < 20)
+        return ctx.reply("متن کوتاه است. لطفاً جزئیات بیشتری بفرستید (حداقل ۲۰ کاراکتر).");
       await setState(env, u.id, null);
       await ctx.reply("در حال ساخت پرامپت اختصاصی...");
 
@@ -662,12 +828,10 @@ ${strategy}
 `;
       try {
         const generated = await callAI(env, prompt, { temperature: 0.3 });
-        // schedule after 2h
         const due = new Date(Date.now() + 2 * 3600 * 1000).toISOString();
         await putCustomPromptTask(env, u.id, due, generated);
         u.customPrompt = { ready: false, text: generated, generatedAt: nowIso() };
         await putUser(env, u);
-
         await ctx.reply("✅ پرامپت شما ساخته شد و ۲ ساعت دیگر ارسال می‌شود.");
       } catch {
         await ctx.reply("❌ خطا در ساخت پرامپت. دوباره تلاش کنید.");
@@ -687,6 +851,7 @@ ${strategy}
           await ctx.reply("❌ پرامپت اختصاصی هنوز آماده نیست. ابتدا /customprompt را انجام دهید.");
           return;
         }
+
         if (env.JOBS) {
           const job: Job = {
             type: "SIGNAL_ANALYSIS",
@@ -714,9 +879,10 @@ ${strategy}
         const candles = await fetchCandles(env, market, symbol, u.settings.timeframe, 200);
 
         const base = await getPromptBase(env);
-        const stylePrompt = u.settings.style === "CUSTOM" && u.customPrompt?.ready && u.customPrompt.text
-          ? u.customPrompt.text
-          : await getPromptStyle(env, u.settings.style);
+        const stylePrompt =
+          u.settings.style === "CUSTOM" && u.customPrompt?.ready && u.customPrompt.text
+            ? u.customPrompt.text
+            : await getPromptStyle(env, u.settings.style);
 
         const candleSummary = summarizeCandles(candles);
 
@@ -771,8 +937,7 @@ ${candleSummary}
       return;
     }
 
-    
-    // Vision: اگر کاربر عکس/چارت ارسال کند (بهترین تلاش)
+    // Vision: اگر کاربر عکس/چارت ارسال کند
     if (ctx.message?.photo?.length) {
       const r = await consume(env, u, 1);
       if (!r.ok) {
@@ -780,31 +945,30 @@ ${candleSummary}
         return;
       }
 
-      // choose a medium size to reduce payload
       const photos = ctx.message.photo;
       const pick = photos[Math.max(0, photos.length - 2)];
       try {
-        const file = await ctx.getFile();
-        // ctx.getFile() returns best size; we instead use pick.file_id
         const f = await bot.api.getFile(pick.file_id);
         if (!f.file_path) throw new Error("no file_path");
         const url = `https://api.telegram.org/file/bot${env.BOT_TOKEN}/${f.file_path}`;
         const imgRes = await fetch(url);
         const buf = await imgRes.arrayBuffer();
-        // limit to 2.5MB
+
         if (buf.byteLength > 2_500_000) {
           await ctx.reply("⚠️ تصویر خیلی بزرگ است. لطفاً اسکرین‌شات کوچک‌تر ارسال کنید.");
           return;
         }
+
         const b64 = arrayBufferToBase64(buf);
         const mime = f.file_path.endsWith(".png") ? "image/png" : "image/jpeg";
         const dataUrl = `data:${mime};base64,${b64}`;
 
         const base = await getPromptBase(env);
         const vision = await getPromptVision(env);
-        const stylePrompt = u.settings.style === "CUSTOM" && u.customPrompt?.ready && u.customPrompt.text
-          ? u.customPrompt.text
-          : await getPromptStyle(env, u.settings.style);
+        const stylePrompt =
+          u.settings.style === "CUSTOM" && u.customPrompt?.ready && u.customPrompt.text
+            ? u.customPrompt.text
+            : await getPromptStyle(env, u.settings.style);
 
         const p = `${base}
 
@@ -823,23 +987,28 @@ news=${u.settings.news}
 
         const out = await callAIWithImage(env, p, dataUrl, { temperature: 0.2 });
         await ctx.reply(out, { disable_web_page_preview: true });
-      } catch (e: any) {
-        await ctx.reply("❌ خطا در تحلیل تصویری. (اگر از OpenAI استفاده می‌کنید، مدل باید vision را پشتیبانی کند)");
+      } catch {
+        await ctx.reply(
+          "❌ خطا در تحلیل تصویری. (اگر از OpenAI استفاده می‌کنید، مدل باید vision را پشتیبانی کند)"
+        );
       }
       return;
     }
 
-// Support: forward to admins
-    if (ctx.message?.text?.startsWith("/")) return; // ignore other commands
+    // Support: forward to admins
+    if (ctx.message?.text?.startsWith("/")) return;
     if (ctx.message?.text) {
-      // If user sends text and no flow, treat as support
       const txt = ctx.message.text.trim();
       if (txt.length >= 3) {
-        await notifyAdmins(env, bot, `🆘 پیام کاربر
+        await notifyAdmins(
+          env,
+          bot,
+          `🆘 پیام کاربر
 User: ${u.id}
 @${u.username ?? "-"}
 
-${txt}`);
+${txt}`
+        );
         await ctx.reply("پیام شما برای پشتیبانی ارسال شد ✅");
       }
     }
@@ -857,8 +1026,11 @@ ${txt}`);
       await putUser(env, u);
       await setState(env, u.id, { flow: "onboarding", step: "ask_fav_market" });
       const kb = new InlineKeyboard()
-        .text("CRYPTO", "ob:market:CRYPTO").text("FOREX", "ob:market:FOREX").row()
-        .text("METALS", "ob:market:METALS").text("STOCKS", "ob:market:STOCKS");
+        .text("CRYPTO", "ob:market:CRYPTO")
+        .text("FOREX", "ob:market:FOREX")
+        .row()
+        .text("METALS", "ob:market:METALS")
+        .text("STOCKS", "ob:market:STOCKS");
       await ctx.reply("بازار مورد علاقه‌ات کدام است؟", { reply_markup: kb });
       return;
     }
@@ -867,20 +1039,21 @@ ${txt}`);
       await ctx.answerCallbackQuery();
       const market = data.split(":")[2] as Market;
       u.favoriteMarket = market;
+      u.onboardingComplete = true;
       await putUser(env, u);
       await setState(env, u.id, null);
 
-      // Referral acceptance rule: only count referral when contact is shared AND phone is new (already enforced).
       if (u.referrerId) {
         const refUser = await getUser(env, u.referrerId);
         if (refUser) {
           refUser.successfulInvites += 1;
-          // commission tier
           const step = parseIntSafe(env.REF_COMMISSION_STEP_PCT, 4);
           const max = parseIntSafe(env.REF_COMMISSION_MAX_PCT, 20);
-          refUser.referralCommissionPct = Math.min(max, refUser.successfulInvites * step);
+          refUser.referralCommissionPct = Math.min(
+            max,
+            refUser.successfulInvites * step
+          );
 
-          // points for referral
           const pts = parseIntSafe(env.POINTS_PER_REF, 6);
           refUser.points += pts;
 
@@ -899,19 +1072,25 @@ ${txt}`);
   return bot;
 }
 
-function summarizeCandles(candles: Array<{ t: number; o: number; h: number; l: number; c: number }>) {
+function summarizeCandles(
+  candles: Array<{ t: number; o: number; h: number; l: number; c: number }>
+) {
   const last = candles.slice(-60);
-  const closes = last.map(c => c.c);
-  const hi = Math.max(...last.map(c => c.h));
-  const lo = Math.min(...last.map(c => c.l));
+  const hi = Math.max(...last.map((c) => c.h));
+  const lo = Math.min(...last.map((c) => c.l));
   const first = last[0]?.c ?? 0;
   const lastc = last[last.length - 1]?.c ?? 0;
   const chg = first ? ((lastc - first) / first) * 100 : 0;
+
   return `last_close=${lastc}
 range_high=${hi}
 range_low=${lo}
 change_pct_last_60_bars=${chg.toFixed(2)}
-samples=[${candles.slice(-10).map(c => ({ t: c.t, o: c.o, h: c.h, l: c.l, c: c.c })).map(x => JSON.stringify(x)).join(", ")}]`;
+samples=[${candles
+    .slice(-10)
+    .map((c) => ({ t: c.t, o: c.o, h: c.h, l: c.l, c: c.c }))
+    .map((x) => JSON.stringify(x))
+    .join(", ")}]`;
 }
 
 function normalizeZones(zones: any): Zone[] {
@@ -922,17 +1101,42 @@ function normalizeZones(zones: any): Zone[] {
     const to = Number(z?.to);
     if (!Number.isFinite(from) || !Number.isFinite(to)) continue;
     const typeRaw = String(z?.type ?? "other").toLowerCase();
-    const type = (["demand","supply","support","resistance","fvg","ob"].includes(typeRaw) ? typeRaw : "other") as Zone["type"];
-    out.push({ type, from, to, label: z?.label ? String(z.label).slice(0, 18) : undefined });
+    const type = (
+      ["demand", "supply", "support", "resistance", "fvg", "ob"].includes(typeRaw)
+        ? typeRaw
+        : "other"
+    ) as Zone["type"];
+    out.push({
+      type,
+      from,
+      to,
+      label: z?.label ? String(z.label).slice(0, 18) : undefined,
+    });
   }
   return out;
 }
 
-async function approvePayment(bot: Bot<MyContext>, env: Env, reviewerId: number, txid: string, approve: boolean, ctx?: MyContext) {
-  if (!txid) { if (ctx) await ctx.reply("TxID را وارد کنید."); return; }
+async function approvePayment(
+  bot: Bot<MyContext>,
+  env: Env,
+  reviewerId: number,
+  txid: string,
+  approve: boolean,
+  ctx?: MyContext
+) {
+  if (!txid) {
+    if (ctx) await ctx.reply("TxID را وارد کنید.");
+    return;
+  }
   const p = await getPayment(env, txid);
-  if (!p) { if (ctx) await ctx.reply("یافت نشد."); return; }
-  if (p.status !== "PENDING") { if (ctx) await ctx.reply("این پرداخت قبلاً بررسی شده است."); return; }
+  if (!p) {
+    if (ctx) await ctx.reply("یافت نشد.");
+    return;
+  }
+  if (p.status !== "PENDING") {
+    if (ctx) await ctx.reply("این پرداخت قبلاً بررسی شده است.");
+    return;
+  }
 
   p.status = approve ? "APPROVED" : "REJECTED";
   p.reviewedAt = nowIso();
@@ -942,38 +1146,52 @@ async function approvePayment(bot: Bot<MyContext>, env: Env, reviewerId: number,
   if (approve) {
     const user = await getUser(env, p.userId);
     if (user) {
-      // activate subscription
       const now = Date.now();
       const days = p.planDays ?? parseIntSafe(env.SUB_DURATION_DAYS, 30);
-      const base = user.subscription.expiresAt && Date.parse(user.subscription.expiresAt) > now ? Date.parse(user.subscription.expiresAt) : now;
+      const base =
+        user.subscription.expiresAt && Date.parse(user.subscription.expiresAt) > now
+          ? Date.parse(user.subscription.expiresAt)
+          : now;
       const expires = new Date(base + days * 24 * 3600 * 1000).toISOString();
       user.subscription.active = true;
       user.subscription.expiresAt = expires;
       user.subscription.lastTxId = txid;
 
-      // points for purchase
       user.points += parseIntSafe(env.POINTS_PER_SUB_PURCHASE, 1000);
 
       await putUser(env, user);
-      try { await bot.api.sendMessage(user.id, `✅ پرداخت تایید شد.
-اشتراک فعال شد تا: ${fmtDateIso(expires, env.TZ)}`); } catch {}
+      try {
+        await bot.api.sendMessage(
+          user.id,
+          `✅ پرداخت تایید شد.
+اشتراک فعال شد تا: ${fmtDateIso(expires, env.TZ)}`
+        );
+      } catch {}
 
-      // referral commission/points for referrer on purchase
       if (user.referrerId) {
         const ref = await getUser(env, user.referrerId);
         if (ref) {
-          // commission can be computed externally; we just notify + add points.
           const bonus = parseIntSafe(env.POINTS_PER_SUB_PURCHASE, 1000);
           ref.points += bonus;
           await putUser(env, ref);
-          try { await bot.api.sendMessage(ref.id, `🎉 یکی از دعوت‌شده‌های شما اشتراک خرید.
-+${bonus} امتیاز`); } catch {}
+          try {
+            await bot.api.sendMessage(
+              ref.id,
+              `🎉 یکی از دعوت‌شده‌های شما اشتراک خرید.
++${bonus} امتیاز`
+            );
+          } catch {}
         }
       }
     }
     if (ctx) await ctx.reply("✅ تایید شد.");
   } else {
-    try { await bot.api.sendMessage(p.userId, "❌ پرداخت شما رد شد. اگر اشتباه است با پشتیبانی تماس بگیرید."); } catch {}
+    try {
+      await bot.api.sendMessage(
+        p.userId,
+        "❌ پرداخت شما رد شد. اگر اشتباه است با پشتیبانی تماس بگیرید."
+      );
+    } catch {}
     if (ctx) await ctx.reply("❌ رد شد.");
   }
 }

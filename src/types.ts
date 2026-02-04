@@ -89,6 +89,8 @@ export interface UserProfile {
   offerBannerSeenAt?: string;
 
   levelInfo?: LevelInfo;
+
+  onboardingComplete?: boolean;
 }
 
 export interface PaymentRecord {
