@@ -569,7 +569,7 @@ ${ctx.me.username ? `https://<YOUR_WORKER_URL>/admin` : "/admin"}
     // Contact handler (onboarding)
     if (ctx.message?.contact) {
       const st = await getState(env, u.id);
-      if (st?.flow === "onboarding" && st.step === "ask_contact") {
+      if (!u.phone || (st?.flow === "onboarding" && st.step === "ask_contact")) {
         const phone = ctx.message.contact.phone_number;
         const r = await (await import("./lib/storage")).setUserPhone(env, u.id, phone, { force: true });
         if (!r.ok) {
@@ -589,7 +589,6 @@ Old User: ${r.existingUserId}`);
           await showMenu(ctx);
           return;
         }
-        // next
         await setState(env, u.id, { flow: "onboarding", step: "ask_experience" });
         const kb = new InlineKeyboard()
           .text("مبتدی", "ob:exp:BEGINNER")
