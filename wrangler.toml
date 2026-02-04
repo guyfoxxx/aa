@@ -77,4 +77,4 @@ bucket_name = "valinaf25-assets"
 # Create a KV namespace and bind it as CACHE_KV, or omit and the bot will fallback to USERS_KV.
 [[kv_namespaces]]
 binding = "CACHE_KV"
-id = "PUT_YOUR_CACHE_KV_NAMESPACE_ID_HERE"
+id = "7090a13aab604f53a256135c0359ff6d"
