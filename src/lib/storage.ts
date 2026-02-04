@@ -1,5 +1,5 @@
 import type { Env } from "../env";
-import type { UserProfile, PaymentRecord, Role, Settings, Timeframe, Risk, Style } from "../types";
+import type { UserProfile, PaymentRecord, Role, Settings, Timeframe, Risk, Style, WalletRequest } from "../types";
 import { monthUtc, nowIso, randomCode, todayUtc } from "./utils";
 
 const USER_KEY = (id: number) => `user:${id}`;
@@ -7,6 +7,7 @@ const PHONE_KEY = (phone: string) => `phone:${phone}`;
 const REFCODE_KEY = (code: string) => `refcode:${code}`;
 const PAYMENT_KEY = (txid: string) => `payment:${txid}`;
 const CUSTOMPROMPT_KEY = (userId: number) => `customprompt:${userId}`;
+const WALLET_REQ_KEY = (id: string) => `walletreq:${id}`;
 
 const CONFIG_WALLET = "config:wallet";
 const CONFIG_BANNER = "config:banner";
@@ -64,6 +65,10 @@ function hydrateUser(env: Env, u: any): { u: UserProfile; changed: boolean } {
   if (!u.subscription) { u.subscription = { active: false }; changed = true; }
   if (!u.wallet) { u.wallet = {}; changed = true; }
   if (!u.customPrompt) { u.customPrompt = { ready: false }; changed = true; }
+  if (u.onboardingComplete == null) {
+    u.onboardingComplete = Boolean(u.phone || u.experience || u.favoriteMarket);
+    changed = true;
+  }
 
   return { u: u as UserProfile, changed };
 }
@@ -120,6 +125,7 @@ export async function ensureUser(env: Env, partial: {
     subscription: { active: false },
     wallet: {},
     customPrompt: { ready: false },
+    onboardingComplete: false,
   };
 
   await putUser(env, u);
@@ -130,10 +136,23 @@ export async function ensureUser(env: Env, partial: {
   return u;
 }
 
-export async function setUserPhone(env: Env, userId: number, phone: string): Promise<{ ok: boolean; reason?: string }> {
+export async function setUserPhone(
+  env: Env,
+  userId: number,
+  phone: string,
+  opts?: { force?: boolean }
+): Promise<{ ok: boolean; reason?: string; existingUserId?: number }> {
   const existing = await env.USERS_KV.get(PHONE_KEY(phone));
-  if (existing && Number(existing) !== userId) {
-    return { ok: false, reason: "این شماره قبلاً ثبت شده است. لطفاً با ادمین تماس بگیرید." };
+  const existingId = existing ? Number(existing) : null;
+  if (existingId && existingId !== userId && !opts?.force) {
+    return { ok: false, reason: "این شماره قبلاً ثبت شده است. لطفاً با ادمین تماس بگیرید.", existingUserId: existingId };
+  }
+  if (existingId && existingId !== userId && opts?.force) {
+    const prev = await getUser(env, existingId);
+    if (prev?.phone === phone) {
+      delete (prev as any).phone;
+      await putUser(env, prev);
+    }
   }
   await env.USERS_KV.put(PHONE_KEY(phone), String(userId));
   const u = await getUser(env, userId);
@@ -448,4 +467,21 @@ export async function setSelectedPlan(env: Env, userId: number, planId: string) 
   if (!u) return;
   u.settings.selectedPlanId = planId;
   await putUser(env, u);
+}
+
+export async function putWalletRequest(env: Env, req: WalletRequest) {
+  await env.USERS_KV.put(WALLET_REQ_KEY(req.id), JSON.stringify(req));
+}
+
+export async function listWalletRequests(env: Env, status?: WalletRequest["status"]): Promise<WalletRequest[]> {
+  const list = await env.USERS_KV.list({ prefix: "walletreq:" });
+  const out: WalletRequest[] = [];
+  for (const k of list.keys) {
+    const raw = await env.USERS_KV.get(k.name);
+    if (!raw) continue;
+    const r = JSON.parse(raw) as WalletRequest;
+    if (!status || r.status === status) out.push(r);
+  }
+  out.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  return out;
 }

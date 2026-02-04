@@ -3,15 +3,14 @@ import { verifyInitData } from "./lib/telegramAuth";
 import {
   ensureUser,
   getBanner,
-  getPublicWallet,
   getPromptBase,
-  getPromptVision,
   getPromptStyle,
   getPlans,
   setPlans,
   getUser,
   listPayments,
   putUser,
+  putWalletRequest,
   setBanner,
   setPromptBase,
   setPromptStyle,
@@ -27,7 +26,7 @@ import {
   DEFAULT_STYLE_PROMPTS,
 } from "./lib/storage";
 import { remaining, consume } from "./lib/quota";
-import { escapeHtml, parseIntSafe } from "./lib/utils";
+import { nowIso } from "./lib/utils";
 import { callAI, extractJsonBlock } from "./lib/ai";
 import { fetchCandles } from "./lib/data";
 import { normalizeZoneForApi, quickChartUrlFromApi } from "./lib/miniHelpers";
@@ -89,6 +88,41 @@ export async function handleApi(req: Request, env: Env): Promise<Response> {
     return json({ ok: true, user });
   }
 
+  if (path === "/api/wallet/set") {
+    const body = await req.json().catch(() => ({}));
+    const address = String(body.address || "").trim();
+    if (!address) return json({ ok: false, error: "address required" }, 400);
+    user.wallet = { ...user.wallet, bep20Address: address };
+    await putUser(env, user);
+    return json({ ok: true });
+  }
+
+  if (path === "/api/wallet/request") {
+    const body = await req.json().catch(() => ({}));
+    const kind = body.kind === "withdraw" ? "withdraw" : "deposit";
+    const amount = Number(body.amount || 0);
+    if (!Number.isFinite(amount) || amount <= 0) return json({ ok: false, error: "amount required" }, 400);
+    if (kind === "withdraw" && !user.wallet?.bep20Address) {
+      return json({ ok: false, error: "bep20 address required" }, 400);
+    }
+    const id = `wr_${user.id}_${Math.random().toString(36).slice(2, 8)}`;
+    await putWalletRequest(env, {
+      id,
+      userId: user.id,
+      kind,
+      amount,
+      createdAt: nowIso(),
+      status: "PENDING",
+      meta: { bep20: user.wallet?.bep20Address ?? "" },
+    });
+    await notifyAdmins(env, `💸 درخواست کیف پول
+User: ${user.id}
+Kind: ${kind}
+Amount: ${amount}
+Address: ${user.wallet?.bep20Address ?? "-"}`);
+    return json({ ok: true, id });
+  }
+
   if (path === "/api/analyze") {
     const quota = await consume(env, user, 1);
     if (!quota.ok) return json({ ok: false, error: quota.reason || "quota" }, 429);
@@ -134,35 +168,6 @@ ${candleSummary}
     }
   }
 
-
-
-if (path === "/admin/api/styles") {
-  return json({ ok: true, styles: Object.keys(DEFAULT_STYLE_PROMPTS) });
-}
-
-if (path === "/admin/api/prompt_get") {
-  const body = await req.json().catch(() => ({}));
-  const type = String(body.type || "").trim();
-  if (!type) return json({ ok: false, error: "type required" }, 400);
-  if (type === "base") return json({ ok: true, ...(await getPromptBaseRaw(env)) });
-  if (type === "vision") return json({ ok: true, ...(await getPromptVisionRaw(env)) });
-  if (type.startsWith("style:")) {
-    const style = type.slice("style:".length);
-    return json({ ok: true, ...(await getPromptStyleRaw(env, style)) });
-  }
-  return json({ ok: false, error: "invalid type" }, 400);
-}
-
-if (path === "/admin/api/prompt_reset") {
-  const body = await req.json().catch(() => ({}));
-  const type = String(body.type || "").trim();
-  if (!type) return json({ ok: false, error: "type required" }, 400);
-  if (type === "base") { await resetPromptBase(env); return json({ ok: true }); }
-  if (type === "vision") { await resetPromptVision(env); return json({ ok: true }); }
-  if (type.startsWith("style:")) { await resetPromptStyle(env, type.slice("style:".length)); return json({ ok: true }); }
-  return json({ ok: false, error: "invalid type" }, 400);
-}
-
   return json({ ok: false, error: "not_found" }, 404);
 }
 
@@ -206,19 +211,18 @@ export async function handleAdminApi(req: Request, env: Env): Promise<Response> 
     return json({ ok: true });
   }
 
-if (path === "/admin/api/plans") {
-  if (req.method === "GET") {
-    const plans = await getPlans(env);
-    return json({ ok: true, plans });
+  if (path === "/admin/api/plans") {
+    if (req.method === "GET") {
+      const plans = await getPlans(env);
+      return json({ ok: true, plans });
+    }
+    const body = await req.json().catch(() => ({}));
+    const plans = Array.isArray(body.plans) ? body.plans : [];
+    await setPlans(env, plans);
+    return json({ ok: true });
   }
-  const body = await req.json().catch(() => ({}));
-  const plans = Array.isArray(body.plans) ? body.plans : [];
-  await setPlans(env, plans);
-  return json({ ok: true });
-}
 
-if (path === "/admin/api/banner") {
-
+  if (path === "/admin/api/banner") {
     const body = await req.json().catch(() => ({}));
     await setBanner(env, { enabled: !!body.enabled, text: String(body.text || ""), url: String(body.url || "") });
     return json({ ok: true });
@@ -238,34 +242,41 @@ if (path === "/admin/api/banner") {
     return json({ ok: true });
   }
 
-
-
-if (path === "/admin/api/styles") {
-  return json({ ok: true, styles: Object.keys(DEFAULT_STYLE_PROMPTS) });
-}
-
-if (path === "/admin/api/prompt_get") {
-  const body = await req.json().catch(() => ({}));
-  const type = String(body.type || "").trim();
-  if (!type) return json({ ok: false, error: "type required" }, 400);
-  if (type === "base") return json({ ok: true, ...(await getPromptBaseRaw(env)) });
-  if (type === "vision") return json({ ok: true, ...(await getPromptVisionRaw(env)) });
-  if (type.startsWith("style:")) {
-    const style = type.slice("style:".length);
-    return json({ ok: true, ...(await getPromptStyleRaw(env, style)) });
+  if (path === "/admin/api/styles") {
+    return json({ ok: true, styles: Object.keys(DEFAULT_STYLE_PROMPTS) });
   }
-  return json({ ok: false, error: "invalid type" }, 400);
-}
 
-if (path === "/admin/api/prompt_reset") {
-  const body = await req.json().catch(() => ({}));
-  const type = String(body.type || "").trim();
-  if (!type) return json({ ok: false, error: "type required" }, 400);
-  if (type === "base") { await resetPromptBase(env); return json({ ok: true }); }
-  if (type === "vision") { await resetPromptVision(env); return json({ ok: true }); }
-  if (type.startsWith("style:")) { await resetPromptStyle(env, type.slice("style:".length)); return json({ ok: true }); }
-  return json({ ok: false, error: "invalid type" }, 400);
-}
+  if (path === "/admin/api/prompt_get") {
+    const body = await req.json().catch(() => ({}));
+    const type = String(body.type || "").trim();
+    if (!type) return json({ ok: false, error: "type required" }, 400);
+    if (type === "base") return json({ ok: true, ...(await getPromptBaseRaw(env)) });
+    if (type === "vision") return json({ ok: true, ...(await getPromptVisionRaw(env)) });
+    if (type.startsWith("style:")) {
+      const style = type.slice("style:".length);
+      return json({ ok: true, ...(await getPromptStyleRaw(env, style)) });
+    }
+    return json({ ok: false, error: "invalid type" }, 400);
+  }
+
+  if (path === "/admin/api/prompt_reset") {
+    const body = await req.json().catch(() => ({}));
+    const type = String(body.type || "").trim();
+    if (!type) return json({ ok: false, error: "type required" }, 400);
+    if (type === "base") {
+      await resetPromptBase(env);
+      return json({ ok: true });
+    }
+    if (type === "vision") {
+      await resetPromptVision(env);
+      return json({ ok: true });
+    }
+    if (type.startsWith("style:")) {
+      await resetPromptStyle(env, type.slice("style:".length));
+      return json({ ok: true });
+    }
+    return json({ ok: false, error: "invalid type" }, 400);
+  }
 
   return json({ ok: false, error: "not_found" }, 404);
 }
