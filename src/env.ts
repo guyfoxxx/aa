@@ -5,6 +5,7 @@ export interface Env {
   WEBHOOK_SECRET: string;
 
   USERS_KV: KVNamespace;
+  JOBS?: Queue<any>;
 
   // Optional secrets
   OPENAI_API_KEY?: string;
@@ -56,4 +57,5 @@ export interface Env {
   CLOUDFLARE_AI_MODEL?: string;
 
   TZ: string;
+  AUTO_VERIFY?: string;
 }
