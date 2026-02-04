@@ -37,6 +37,62 @@ export async function fetchCandles(env: Env, market: Market, symbol: string, tf:
   }
 }
 
+export async function fetchCandlesWithMeta(
+  env: Env,
+  market: Market,
+  symbol: string,
+  tf: Timeframe,
+  limit = 200
+): Promise<{ candles: Candle[]; source: string; normalizedSymbol: string }> {
+  const normalizedSymbol = normalizeSymbol(market, symbol);
+
+  if (market === "CRYPTO") {
+    try {
+      const candles = await fetchBinance(normalizedSymbol, tf, limit);
+      return { candles, source: "binance", normalizedSymbol };
+    } catch (e) {
+      if (env.TWELVEDATA_API_KEY) {
+        try {
+          const candles = await fetchTwelveData(env, normalizedSymbol, tf, limit);
+          return { candles, source: "twelvedata", normalizedSymbol };
+        } catch {}
+      }
+      throw e;
+    }
+  }
+
+  try {
+    const candles = await fetchYahoo(normalizedSymbol, tf, limit);
+    return { candles, source: "yahoo", normalizedSymbol };
+  } catch (e) {
+    if (env.TWELVEDATA_API_KEY) {
+      try {
+        const candles = await fetchTwelveData(env, normalizedSymbol, tf, limit);
+        return { candles, source: "twelvedata", normalizedSymbol };
+      } catch {}
+    }
+    if (env.FINNHUB_API_KEY) {
+      try {
+        const candles = await fetchFinnhub(env, market, normalizedSymbol, tf, limit);
+        return { candles, source: "finnhub", normalizedSymbol };
+      } catch {}
+    }
+    if (env.ALPHAVANTAGE_API_KEY) {
+      try {
+        const candles = await fetchAlphaVantage(env, normalizedSymbol, tf, limit);
+        return { candles, source: "alphavantage", normalizedSymbol };
+      } catch {}
+    }
+    if (env.POLYGON_API_KEY) {
+      try {
+        const candles = await fetchPolygon(env, normalizedSymbol, tf, limit);
+        return { candles, source: "polygon", normalizedSymbol };
+      } catch {}
+    }
+    throw e;
+  }
+}
+
 async function fetchBinance(symbol: string, tf: Timeframe, limit: number): Promise<Candle[]> {
   // Expect symbol like BTCUSDT, ETHUSDT
   const interval = tfToBinanceInterval(tf);
@@ -153,4 +209,54 @@ async function fetchAlphaVantage(env: Env, symbol: string, tf: Timeframe, limit:
       v: row["5. volume"] ? Number(row["5. volume"]) : undefined,
     };
   });
+}
+
+function normalizeSymbol(market: Market, symbol: string) {
+  const raw = symbol.trim();
+  if (market === "CRYPTO") return raw.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  return raw;
+}
+
+async function fetchFinnhub(env: Env, market: Market, symbol: string, tf: Timeframe, limit: number): Promise<Candle[]> {
+  const resolution = tf === "D1" ? "D" : tf === "H4" ? "60" : tf === "H1" ? "60" : "15";
+  const to = Math.floor(Date.now() / 1000);
+  const from = to - (limit * 3600);
+  const base =
+    market === "STOCKS"
+      ? "https://finnhub.io/api/v1/stock/candle"
+      : "https://finnhub.io/api/v1/forex/candle";
+  const url = `${base}?symbol=${encodeURIComponent(symbol)}&resolution=${encodeURIComponent(resolution)}&from=${from}&to=${to}&token=${encodeURIComponent(env.FINNHUB_API_KEY!)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Finnhub error ${res.status}`);
+  const data = await res.json() as any;
+  if (data.s !== "ok") throw new Error("Finnhub: no data");
+  return data.t.map((t: number, i: number) => ({
+    t: t * 1000,
+    o: Number(data.o[i]),
+    h: Number(data.h[i]),
+    l: Number(data.l[i]),
+    c: Number(data.c[i]),
+    v: data.v ? Number(data.v[i]) : undefined,
+  }));
+}
+
+async function fetchPolygon(env: Env, symbol: string, tf: Timeframe, limit: number): Promise<Candle[]> {
+  const multiplier = tf === "D1" ? 1 : tf === "H4" ? 4 : tf === "H1" ? 1 : 15;
+  const timespan = tf === "D1" ? "day" : tf === "H4" || tf === "H1" ? "hour" : "minute";
+  const to = new Date().toISOString().slice(0, 10);
+  const from = new Date(Date.now() - limit * 24 * 3600 * 1000).toISOString().slice(0, 10);
+  const url = `https://api.polygon.io/v2/aggs/ticker/${encodeURIComponent(symbol)}/range/${multiplier}/${timespan}/${from}/${to}?adjusted=true&sort=asc&limit=${limit}&apiKey=${encodeURIComponent(env.POLYGON_API_KEY!)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Polygon error ${res.status}`);
+  const data = await res.json() as any;
+  const results = data?.results;
+  if (!Array.isArray(results)) throw new Error("Polygon: no results");
+  return results.map((r: any) => ({
+    t: Number(r.t),
+    o: Number(r.o),
+    h: Number(r.h),
+    l: Number(r.l),
+    c: Number(r.c),
+    v: r.v ? Number(r.v) : undefined,
+  }));
 }
