@@ -557,10 +557,17 @@ ${ctx.me.username ? `https://<YOUR_WORKER_URL>/admin` : "/admin"}
       const st = await getState(env, u.id);
       if (st?.flow === "onboarding" && st.step === "ask_contact") {
         const phone = ctx.message.contact.phone_number;
-        const r = await (await import("./lib/storage")).setUserPhone(env, u.id, phone);
+        const r = await (await import("./lib/storage")).setUserPhone(env, u.id, phone, { force: true });
         if (!r.ok) {
           await ctx.reply(r.reason || "خطا در ذخیره شماره");
           return;
+        }
+        if (r.existingUserId && r.existingUserId !== u.id) {
+          await notifyAdmins(env, bot, `⚠️ شماره تلفن دوباره ثبت شد و به این کاربر منتقل شد.
+Phone: ${phone}
+New User: ${u.id}
+Old User: ${r.existingUserId}`);
+          await ctx.reply("✅ شماره قبلاً ثبت شده بود؛ شماره به حساب شما منتقل شد و آنبوردینگ ادامه پیدا می‌کند.");
         }
         // next
         await setState(env, u.id, { flow: "onboarding", step: "ask_experience" });

@@ -131,10 +131,23 @@ export async function ensureUser(env: Env, partial: {
   return u;
 }
 
-export async function setUserPhone(env: Env, userId: number, phone: string): Promise<{ ok: boolean; reason?: string }> {
+export async function setUserPhone(
+  env: Env,
+  userId: number,
+  phone: string,
+  opts?: { force?: boolean }
+): Promise<{ ok: boolean; reason?: string; existingUserId?: number }> {
   const existing = await env.USERS_KV.get(PHONE_KEY(phone));
-  if (existing && Number(existing) !== userId) {
-    return { ok: false, reason: "این شماره قبلاً ثبت شده است. لطفاً با ادمین تماس بگیرید." };
+  const existingId = existing ? Number(existing) : null;
+  if (existingId && existingId !== userId && !opts?.force) {
+    return { ok: false, reason: "این شماره قبلاً ثبت شده است. لطفاً با ادمین تماس بگیرید.", existingUserId: existingId };
+  }
+  if (existingId && existingId !== userId && opts?.force) {
+    const prev = await getUser(env, existingId);
+    if (prev?.phone === phone) {
+      delete (prev as any).phone;
+      await putUser(env, prev);
+    }
   }
   await env.USERS_KV.put(PHONE_KEY(phone), String(userId));
   const u = await getUser(env, userId);
