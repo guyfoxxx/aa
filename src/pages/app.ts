@@ -11,115 +11,191 @@ export function appHtml(env: Env) {
   <title>Valinaf25 Mini App</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto; margin:0; background:#0b0f17; color:#e6e8ef;}
-    header{padding:16px 16px 8px}
-    .card{background:#121a29; border:1px solid #1f2b44; border-radius:14px; padding:14px; margin:12px 16px;}
+    :root{
+      --bg:#0a0d16;
+      --panel:#101826;
+      --panel-2:#0f1b2e;
+      --stroke:#1f2c44;
+      --text:#e9eef7;
+      --muted:#a9b6cc;
+      --brand:#4c8dff;
+      --brand-2:#7b5bff;
+      --good:#2ee59d;
+      --warn:#ffb020;
+      --radius:18px;
+      --shadow:0 24px 60px rgba(0,0,0,.45);
+    }
+    *{box-sizing:border-box}
+    body{
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto;
+      margin:0;
+      color:var(--text);
+      background:
+        radial-gradient(1000px 500px at 80% -10%, rgba(76,141,255,.25), transparent 60%),
+        radial-gradient(900px 500px at 20% 0%, rgba(123,91,255,.22), transparent 65%),
+        var(--bg);
+      min-height:100vh;
+    }
+    .wrap{max-width:960px; margin:0 auto; padding:18px 16px 40px}
+    .hero{
+      display:flex; align-items:center; justify-content:space-between; gap:16px;
+      padding:18px;
+      border-radius:var(--radius);
+      border:1px solid rgba(255,255,255,.06);
+      background: linear-gradient(180deg, rgba(16,24,38,.85), rgba(16,24,38,.55));
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
+    }
+    .hero h1{margin:0; font-size:20px}
+    .hero .sub{color:var(--muted); font-size:12px}
+    .card{
+      margin-top:14px;
+      padding:16px;
+      border-radius:var(--radius);
+      border:1px solid rgba(255,255,255,.06);
+      background: linear-gradient(180deg, rgba(16,27,46,.75), rgba(16,24,38,.55));
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
+    }
     .row{display:flex; gap:10px; flex-wrap:wrap}
-    .pill{padding:6px 10px; border-radius:999px; background:#0f1524; border:1px solid #22314f; font-size:12px}
-    button{background:#2b6cff; color:white; border:0; padding:10px 12px; border-radius:12px; font-weight:700;}
-    input,select,textarea{width:100%; padding:10px; border-radius:12px; border:1px solid #22314f; background:#0f1524; color:#e6e8ef;}
-    a{color:#8bb5ff}
-    .muted{color:#9aa6be; font-size:12px}
+    .pill{padding:6px 12px; border-radius:999px; background:#0f1626; border:1px solid var(--stroke); font-size:12px}
+    .chip{padding:4px 10px; border-radius:999px; background:rgba(76,141,255,.15); border:1px solid rgba(76,141,255,.3); font-size:11px}
+    .muted{color:var(--muted); font-size:12px}
     .grid{display:grid; grid-template-columns:1fr 1fr; gap:10px}
-    .bar{height:10px; background:#0f1524; border:1px solid #22314f; border-radius:999px; overflow:hidden}
-    .bar > div{height:100%; background:#2b6cff; width:0%}
-    .banner{background:#1a2a50; border:1px dashed #5f83ff}
+    .bar{height:10px; background:#0f1626; border:1px solid var(--stroke); border-radius:999px; overflow:hidden}
+    .bar > div{height:100%; background:linear-gradient(90deg, var(--brand), var(--brand-2)); width:0%}
+    button{
+      background: linear-gradient(135deg, var(--brand), var(--brand-2));
+      color:white; border:0; padding:10px 12px; border-radius:12px; font-weight:700; cursor:pointer;
+      box-shadow: 0 12px 30px rgba(76,141,255,.25);
+    }
+    button.secondary{
+      background:#0f1626; border:1px solid var(--stroke); box-shadow:none;
+    }
+    input,select,textarea{
+      width:100%; padding:10px; border-radius:12px; border:1px solid var(--stroke);
+      background:#0f1626; color:var(--text);
+    }
+    a{color:#8bb5ff}
+    .banner{border:1px dashed rgba(123,91,255,.55); background: rgba(123,91,255,.08)}
+    .section-title{margin:0 0 10px; font-size:15px}
+    .status{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+    .status .dot{width:8px; height:8px; border-radius:999px; background:var(--good)}
+    .split{display:grid; grid-template-columns:1.1fr .9fr; gap:12px}
+    @media (max-width: 720px){
+      .grid,.split{grid-template-columns:1fr}
+      .hero{flex-direction:column; align-items:flex-start}
+    }
   </style>
 </head>
 <body>
-  <header>
-    <div class="muted">Mini App</div>
-    <h2 style="margin:8px 0 0">داشبورد</h2>
-  </header>
+  <div class="wrap">
+    <header class="hero">
+      <div>
+        <div class="muted">Mini App • Market IQ</div>
+        <h1>داشبورد هوشمند ترید</h1>
+        <div class="sub">مدیریت سهمیه، تنظیمات و تحلیل سریع بازار</div>
+      </div>
+      <div class="row">
+        <span class="chip">تحلیل فوری</span>
+        <span class="chip">پروفایل و کیف پول</span>
+      </div>
+    </header>
 
-  <div id="banner" class="card banner" style="display:none">
-    <div id="bannerText"></div>
-    <div style="margin-top:8px"><a id="bannerLink" href="#" target="_blank">مشاهده</a></div>
+    <div id="banner" class="card banner" style="display:none">
+      <div class="section-title">🎁 آفر ویژه</div>
+      <div id="bannerText"></div>
+      <div style="margin-top:8px"><a id="bannerLink" href="#" target="_blank">مشاهده</a></div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div class="pill" id="pName">نام: ...</div>
+        <div class="pill" id="pPoints">امتیاز: ...</div>
+        <div class="pill" id="pInvites">دعوت موفق: ...</div>
+      </div>
+      <div class="status" style="margin-top:10px">
+        <span class="dot"></span>
+        <div class="muted" id="pSub">اشتراک: ...</div>
+      </div>
+
+      <div class="split" style="margin-top:14px">
+        <div>
+          <div class="muted">سهمیه روزانه</div>
+          <div class="bar"><div id="dailyBar"></div></div>
+          <div class="muted" id="dailyText" style="margin-top:6px">...</div>
+        </div>
+        <div>
+          <div class="muted">سهمیه ماهانه</div>
+          <div class="bar"><div id="monthBar"></div></div>
+          <div class="muted" id="monthText" style="margin-top:6px">...</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 class="section-title">📈 تحلیل سریع</h3>
+      <div class="grid">
+        <select id="market">
+          <option value="CRYPTO">کریپتو</option>
+          <option value="FOREX">فارکس</option>
+          <option value="METALS">فلزات</option>
+          <option value="STOCKS">سهام</option>
+        </select>
+        <input id="symbol" placeholder="نماد (مثلاً BTCUSDT یا BTC-USD یا EURUSD=X)" />
+      </div>
+      <button style="margin-top:10px" id="run">اجرای تحلیل</button>
+      <div id="out" style="margin-top:12px; white-space:pre-wrap"></div>
+      <div id="img" style="margin-top:12px"></div>
+    </div>
+
+    <div class="card">
+      <h3 class="section-title">⚙️ تنظیمات</h3>
+      <div class="grid">
+        <select id="tf">
+          <option value="M15">M15</option>
+          <option value="H1">H1</option>
+          <option value="H4">H4</option>
+          <option value="D1">D1</option>
+        </select>
+        <select id="risk">
+          <option value="LOW">ریسک کم</option>
+          <option value="MEDIUM">ریسک متوسط</option>
+          <option value="HIGH">ریسک زیاد</option>
+        </select>
+        <select id="style">
+          <option value="GENERAL">پرامپت عمومی</option>
+          <option value="RTM">RTM</option>
+          <option value="ICT">ICT</option>
+          <option value="PA">پرایس اکشن</option>
+          <option value="ATR">ATR (Volatility)</option>
+          <option value="CUSTOM">پرامپت اختصاصی</option>
+        </select>
+        <select id="news">
+          <option value="OFF">خبر خاموش</option>
+          <option value="ON">خبر روشن</option>
+        </select>
+      </div>
+      <button style="margin-top:10px" id="save">ذخیره</button>
+      <div id="saveMsg" class="muted" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card">
+      <h3 class="section-title">💳 کیف پول</h3>
+      <div class="muted">آدرس برداشت BEP20</div>
+      <input id="bep20" placeholder="0x..." />
+      <button style="margin-top:10px" id="saveWallet">ثبت آدرس</button>
+      <div class="grid" style="margin-top:10px">
+        <input id="amt" placeholder="مبلغ (USDT)" />
+        <select id="wkind">
+          <option value="deposit">درخواست واریز</option>
+          <option value="withdraw">درخواست برداشت</option>
+        </select>
+      </div>
+      <button style="margin-top:10px" id="walletReq">ثبت درخواست</button>
+      <div id="wmsg" class="muted" style="margin-top:8px"></div>
+    </div>
   </div>
-
-  <div class="card">
-    <div class="row">
-      <div class="pill" id="pName">نام: ...</div>
-      <div class="pill" id="pPoints">امتیاز: ...</div>
-      <div class="pill" id="pInvites">دعوت موفق: ...</div>
-    </div>
-    <div style="margin-top:10px" class="muted" id="pSub">اشتراک: ...</div>
-
-    <div style="margin-top:14px">
-      <div class="muted">سهمیه روزانه</div>
-      <div class="bar"><div id="dailyBar"></div></div>
-      <div class="muted" id="dailyText" style="margin-top:6px">...</div>
-    </div>
-
-    <div style="margin-top:14px">
-      <div class="muted">سهمیه ماهانه</div>
-      <div class="bar"><div id="monthBar"></div></div>
-      <div class="muted" id="monthText" style="margin-top:6px">...</div>
-    </div>
-  </div>
-
-  <div class="card">
-    <h3 style="margin:0 0 8px">تحلیل سریع</h3>
-    <div class="grid">
-      <select id="market">
-        <option value="CRYPTO">کریپتو</option>
-        <option value="FOREX">فارکس</option>
-        <option value="METALS">فلزات</option>
-        <option value="STOCKS">سهام</option>
-      </select>
-      <input id="symbol" placeholder="نماد (مثلاً BTCUSDT یا BTC-USD یا EURUSD=X)" />
-    </div>
-    <button style="margin-top:10px" id="run">اجرای تحلیل</button>
-    <div id="out" style="margin-top:12px; white-space:pre-wrap"></div>
-    <div id="img" style="margin-top:12px"></div>
-  </div>
-
-  <div class="card">
-    <h3 style="margin:0 0 8px">تنظیمات</h3>
-    <div class="grid">
-      <select id="tf">
-        <option value="M15">M15</option>
-        <option value="H1">H1</option>
-        <option value="H4">H4</option>
-        <option value="D1">D1</option>
-      </select>
-      <select id="risk">
-        <option value="LOW">ریسک کم</option>
-        <option value="MEDIUM">ریسک متوسط</option>
-        <option value="HIGH">ریسک زیاد</option>
-      </select>
-      <select id="style">
-        <option value="GENERAL">پرامپت عمومی</option>
-        <option value="RTM">RTM</option>
-        <option value="ICT">ICT</option>
-        <option value="PA">پرایس اکشن</option>
-        <option value="ATR">ATR (Volatility)</option>
-        <option value="CUSTOM">پرامپت اختصاصی</option>
-      </select>
-      <select id="news">
-        <option value="OFF">خبر خاموش</option>
-        <option value="ON">خبر روشن</option>
-      </select>
-    </div>
-    <button style="margin-top:10px" id="save">ذخیره</button>
-    <div id="saveMsg" class="muted" style="margin-top:8px"></div>
-  
-<div class="card">
-  <h3 style="margin:0 0 8px">کیف پول</h3>
-  <div class="muted">آدرس برداشت BEP20</div>
-  <input id="bep20" placeholder="0x..." />
-  <button style="margin-top:10px" id="saveWallet">ثبت آدرس</button>
-  <div class="grid" style="margin-top:10px">
-    <input id="amt" placeholder="مبلغ (USDT)" />
-    <select id="wkind">
-      <option value="deposit">درخواست واریز</option>
-      <option value="withdraw">درخواست برداشت</option>
-    </select>
-  </div>
-  <button style="margin-top:10px" id="walletReq">ثبت درخواست</button>
-  <div id="wmsg" class="muted" style="margin-top:8px"></div>
-</div>
-</div>
 
 <script>
   const tg = window.Telegram?.WebApp;

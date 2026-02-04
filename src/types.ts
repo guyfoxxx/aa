@@ -1,5 +1,7 @@
 export type Risk = "LOW" | "MEDIUM" | "HIGH";
 export type Style = "RTM" | "ICT" | "PA" | "ATR" | "GENERAL" | "CUSTOM";
+export type TradeStyle = Style;
+export type RiskLevel = Risk;
 export type Timeframe = "M15" | "H1" | "H4" | "D1";
 
 export type Market = "CRYPTO" | "FOREX" | "METALS" | "STOCKS";
@@ -11,6 +13,7 @@ export interface Settings {
   risk: Risk;
   style: Style;
   news: "ON" | "OFF";
+  selectedPlanId?: string;
 }
 
 export interface Subscription {
@@ -38,6 +41,16 @@ export interface LevelInfo {
 export interface WalletInfo {
   bep20Address?: string;
   balance?: number;
+}
+
+export interface WalletRequest {
+  id: string;
+  userId: number;
+  kind: "deposit" | "withdraw";
+  amount: number;
+  createdAt: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  meta?: Record<string, unknown>;
 }
 
 export interface UserProfile {

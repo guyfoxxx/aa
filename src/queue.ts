@@ -7,7 +7,6 @@ import { getUser, getPromptBase, getPromptStyle } from "./lib/storage";
 import { consume } from "./lib/quota";
 import { buildAnalysisPrompt } from "./lib/prompts";
 import { analysisCacheKey, getJson, putJson } from "./lib/cache";
-import { cacheGetJson, cachePutJson } from "./lib/cache";
 
 async function tg(env: Env, method: string, body: any) {
   const res = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/${method}`, {
@@ -37,6 +36,10 @@ async function sendPhoto(env: Env, chatId: number, photoUrl: string, caption?: s
 export async function handleJob(env: Env, job: Job) {
   if (job.type === "SIGNAL_ANALYSIS") {
     const u = await getUser(env, job.userId);
+    if (!u) {
+      await send(env, job.chatId, "❌ کاربر یافت نشد. لطفاً دوباره /start را بزنید.");
+      return;
+    }
 
     // quota consume inside worker (queue-side) to avoid webhook timeouts/races
     const q = await consume(env, u, 1);
@@ -69,20 +72,25 @@ export async function handleJob(env: Env, job: Job) {
       candles,
     });
 
-// AI analysis cache (reduces cost & latency at scale)
-const aKey = analysisCacheKey({
-  market: job.market,
-  symbol: job.symbol,
-  tf: job.timeframe,
-  style: job.style,
-  risk: job.risk,
-  news: job.news,
-});
-const cachedAnalysis = await getJson<any>(env, aKey);
-const out = cachedAnalysis?.out ? String(cachedAnalysis.out) : await callAI(env, prompt, { temperature: 0.2 });
-const cachedZones = Array.isArray(cachedAnalysis?.zones) ? cachedAnalysis.zones : null;
+    // AI analysis cache (reduces cost & latency at scale)
+    const aKey = analysisCacheKey({
+      market: job.market,
+      symbol: job.symbol,
+      tf: job.timeframe,
+      style: job.style,
+      risk: job.risk,
+      news: job.news,
+    });
+    const cachedAnalysis = await getJson<any>(env, aKey);
+    const out = cachedAnalysis?.out ? String(cachedAnalysis.out) : await callAI(env, prompt, { temperature: 0.2 });
+    const cachedZones = Array.isArray(cachedAnalysis?.zones) ? cachedAnalysis.zones : null;
+    const parsed = cachedZones ? null : extractJsonBlock(out);
+    const zones = cachedZones ?? normalizeZones(parsed?.zones);
 
-    
+    if (!cachedAnalysis) {
+      await putJson(env, aKey, { out, zones }, 120);
+    }
+
     const chart = zones.length ? quickChartUrl(job.symbol, candles, zones) : null;
 
     const header =
@@ -109,6 +117,20 @@ const cachedZones = Array.isArray(cachedAnalysis?.zones) ? cachedAnalysis.zones 
     await send(env, job.chatId, `✅ پرامپت اختصاصی شما آماده شد:\n\n${cp.text}`);
     return;
   }
+}
+
+function normalizeZones(zones: any): Zone[] {
+  if (!Array.isArray(zones)) return [];
+  const out: Zone[] = [];
+  for (const z of zones) {
+    const from = Number(z?.from ?? z?.priceLow ?? z?.low);
+    const to = Number(z?.to ?? z?.priceHigh ?? z?.high);
+    if (!Number.isFinite(from) || !Number.isFinite(to)) continue;
+    const typeRaw = String(z?.type ?? "other").toLowerCase();
+    const type = (["demand", "supply", "support", "resistance", "fvg", "ob"].includes(typeRaw) ? typeRaw : "other") as Zone["type"];
+    out.push({ type, from, to, label: z?.label ? String(z.label).slice(0, 18) : undefined });
+  }
+  return out;
 }
 
 export default {
